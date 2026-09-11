@@ -1,0 +1,114 @@
+# .github/workflows/main.yml
+
+name: Rankings 6-a-side
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Prague 08:00 Tuesday:
+    # - 06:00 UTC during summer time
+    # - 07:00 UTC during winter time
+    - cron: "0 6 * * 2"
+    - cron: "0 7 * * 2"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rankings-6aside
+  cancel-in-progress: false
+
+jobs:
+  rankings:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Prague time
+        id: prague_time
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_job=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          HOUR=$(TZ="Europe/Prague" date +"%H")
+          DAY=$(TZ="Europe/Prague" date +"%u")
+
+          if [ "$DAY" = "2" ] && [ "$HOUR" = "08" ]; then
+            echo "run_job=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not 08:00 Tuesday Prague time. Skipping."
+            echo "run_job=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repo
+        if: steps.prague_time.outputs.run_job == 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        if: steps.prague_time.outputs.run_job == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        if: steps.prague_time.outputs.run_job == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Write credentials/config files
+        if: steps.prague_time.outputs.run_job == 'true'
+        shell: bash
+        run: |
+          echo '${{ secrets.CREDENTIALS_JSON }}' > credentials.json
+          echo '${{ secrets.META_CONFIG_6ASIDE_JSON }}' > meta_config_6aside.json
+
+      - name: Generate ranking images
+        if: steps.prague_time.outputs.run_job == 'true'
+        run: |
+          python "rankings 6-a-side.py" --generate-only
+
+      - name: Commit generated ranking images
+        if: steps.prague_time.outputs.run_job == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add output/rankings
+
+          if git diff --cached --quiet; then
+            echo "No generated ranking changes to commit."
+          else
+            git commit -m "Generate 6-a-side ranking images"
+            git push
+          fi
+
+      - name: Wait for GitHub raw files
+        if: steps.prague_time.outputs.run_job == 'true'
+        run: sleep 20
+
+      - name: Post rankings to Meta
+        if: steps.prague_time.outputs.run_job == 'true'
+        run: |
+          python "rankings 6-a-side.py" --post-only
+
+      - name: Commit cleanup after posting
+        if: steps.prague_time.outputs.run_job == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add output/rankings
+
+          if git diff --cached --quiet; then
+            echo "No cleanup changes to commit."
+          else
+            git commit -m "Clean up posted 6-a-side ranking images"
+            git push
+          fi
