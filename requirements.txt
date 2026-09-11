@@ -1,0 +1,11 @@
+beautifulsoup4
+pandas
+openpyxl
+selenium
+webdriver-manager
+Pillow
+requests
+gspread
+google-auth
+google-api-python-client
+oauth2client
