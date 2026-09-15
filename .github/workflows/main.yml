@@ -23,22 +23,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check Prague time
+      - name: Check Prague DST schedule
         id: prague_time
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual run. Running job."
             echo "run_job=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          HOUR=$(TZ="Europe/Prague" date +"%H")
-          DAY=$(TZ="Europe/Prague" date +"%u")
+          CURRENT_CRON="${{ github.event.schedule }}"
+          PRAGUE_OFFSET=$(TZ="Europe/Prague" date +"%z")
 
-          if [ "$DAY" = "2" ] && [ "$HOUR" = "08" ]; then
+          echo "Triggered cron: $CURRENT_CRON"
+          echo "Current Prague UTC offset: $PRAGUE_OFFSET"
+
+          if [ "$PRAGUE_OFFSET" = "+0200" ]; then
+            EXPECTED_CRON="0 6 * * 2"
+          elif [ "$PRAGUE_OFFSET" = "+0100" ]; then
+            EXPECTED_CRON="0 7 * * 2"
+          else
+            echo "Unknown Prague offset: $PRAGUE_OFFSET"
+            echo "run_job=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Expected cron for current Prague offset: $EXPECTED_CRON"
+
+          if [ "$CURRENT_CRON" = "$EXPECTED_CRON" ]; then
+            echo "Correct seasonal cron. Running job, even if GitHub started late."
             echo "run_job=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Not 08:00 Tuesday Prague time. Skipping."
+            echo "Wrong seasonal cron. Skipping duplicate run."
             echo "run_job=false" >> "$GITHUB_OUTPUT"
           fi
 
