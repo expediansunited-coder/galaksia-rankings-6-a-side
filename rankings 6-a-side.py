@@ -542,6 +542,29 @@ def draw_centered_text(draw, xy, text, font, fill, stroke_width=0, stroke_fill=(
         stroke_fill=stroke_fill,
     )
 
+def fit_font_inside_canvas(draw, text, start_size, xy, anchor, canvas_w, canvas_h,
+                           min_size=20, bold=True, stroke_width=0, margin=4):
+    text = str(text)
+
+    for size in range(start_size, min_size - 1, -2):
+        font = load_font(size, bold=bold)
+        bbox = draw.textbbox(
+            xy,
+            text,
+            font=font,
+            anchor=anchor,
+            stroke_width=stroke_width
+        )
+
+        if (
+            bbox[0] >= margin and
+            bbox[1] >= margin and
+            bbox[2] <= canvas_w - margin and
+            bbox[3] <= canvas_h - margin
+        ):
+            return font
+
+    return load_font(min_size, bold=bold)
 
 def draw_ranking_image(df, cfg, league_logo=None):
     team_count = min(len(df), MAX_ROWS)
@@ -560,16 +583,31 @@ def draw_ranking_image(df, cfg, league_logo=None):
     paste_logo_centered(img, league_logo, (logo_x, logo_y), logo_max)
 
     # ---------------- League label beside LIGA ----------------
-    league_font = load_font(scale_len(130, H, BASE_H), bold=True)
+    league_size = scale_len(130, H, BASE_H)
     league_x, league_y = scale_xy(LEAGUE_LABEL_POS[0], LEAGUE_LABEL_POS[1], W, H)
-
+    league_stroke = max(1, scale_len(2, H, BASE_H))
+    
+    league_font = fit_font_inside_canvas(
+        draw=draw,
+        text=cfg["league_label"],
+        start_size=league_size,
+        xy=(league_x, league_y),
+        anchor="rm",
+        canvas_w=W,
+        canvas_h=H,
+        min_size=20,
+        bold=True,
+        stroke_width=league_stroke,
+        margin=4
+    )
+    
     draw.text(
         (league_x, league_y),
         cfg["league_label"],
         font=league_font,
         fill=TEXT_LIGA_GREY,
         anchor="rm",
-        stroke_width=max(1, scale_len(2, H, BASE_H)),
+        stroke_width=league_stroke,
         stroke_fill=(0, 0, 0),
     )
 
