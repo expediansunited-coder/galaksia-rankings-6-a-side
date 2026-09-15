@@ -553,6 +553,8 @@ def draw_ranking_image(df, cfg, league_logo=None):
     img = Image.open(background_path).convert("RGBA")
     W, H = img.size
     draw = ImageDraw.Draw(img)
+
+    # ---------------- League logo ----------------
     logo_x, logo_y = scale_xy(LEAGUE_LOGO_CENTER[0], LEAGUE_LOGO_CENTER[1], W, H)
     logo_max = scale_len(LEAGUE_LOGO_MAX_SIZE, W, BASE_W)
     paste_logo_centered(img, league_logo, (logo_x, logo_y), logo_max)
@@ -570,6 +572,90 @@ def draw_ranking_image(df, cfg, league_logo=None):
         stroke_width=max(1, scale_len(2, H, BASE_H)),
         stroke_fill=(0, 0, 0),
     )
+
+    # ---------------- VETs label between LIGA and STANDINGS ----------------
+    if cfg["team"].lower() == "vets":
+        vets_font = load_font(scale_len(34, H, BASE_H), bold=True)
+        vets_x, vets_y = scale_xy(350, 236, W, H)
+
+        draw.text(
+            (vets_x, vets_y),
+            "VETERANS",
+            font=vets_font,
+            fill=TEXT_LIGA_GREY,
+            anchor="mm",
+            stroke_width=max(1, scale_len(2, H, BASE_H)),
+            stroke_fill=(0, 0, 0),
+        )
+
+    # ---------------- Season label in green ribbon ----------------
+    season_label = get_season_label(cfg["source"])
+    season_font = load_font(scale_len(36, H, BASE_H), bold=True)
+    season_x, season_y = scale_xy(SEASON_POS[0], SEASON_POS[1], W, H)
+
+    draw.text(
+        (season_x, season_y),
+        season_label,
+        font=season_font,
+        fill=TEXT_BLACK,
+        anchor="mm",
+    )
+
+    # ---------------- Table rows ----------------
+    num_start_size = scale_len(24, H, BASE_H)
+    team_start_size = scale_len(22, H, BASE_H)
+
+    for i in range(team_count):
+        if i >= len(df):
+            break
+
+        row = df.iloc[i]
+        y = scale_len(FIRST_ROW_Y + i * ROW_H, H, BASE_H)
+
+        team_name = row.get("Team", "")
+        is_galaksia = (
+            "galaksia" in str(team_name).lower()
+            or "gp23" in str(team_name).lower()
+        )
+        row_color = GALAKSIA_GREEN if is_galaksia else TEXT_WHITE
+
+        values = {
+            "position": row.get("Position", ""),
+            "team": team_name,
+            "matches": row.get("Matches Played", ""),
+            "wins": row.get("Wins", ""),
+            "draws": row.get("Draws", ""),
+            "losses": row.get("Losses", ""),
+            "diff": row.get("Diff", ""),
+            "points": row.get("Points", ""),
+        }
+
+        for key, value in values.items():
+            # Template already contains ranking numbers 1-12.
+            # Do not draw Position again.
+            if key == "position":
+                continue
+
+            x = scale_len(TABLE_X_CENTERS[key], W, BASE_W)
+
+            if key == "team":
+                max_w = scale_len(TEAM_CELL_MAX_W, W, BASE_W)
+                font = fit_font(draw, value, max_w, team_start_size, min_size=9)
+            else:
+                max_w = scale_len(NUM_CELL_MAX_W, W, BASE_W)
+                font = fit_font(draw, value, max_w, num_start_size, min_size=8)
+
+            draw_centered_text(
+                draw,
+                (x, y),
+                value,
+                font,
+                row_color,
+                stroke_width=max(1, scale_len(1, H, BASE_H)),
+                stroke_fill=(0, 0, 0),
+            )
+
+    return img.convert("RGB")
 
 def make_story_version(feed_img_path):
     feed = Image.open(feed_img_path).convert("RGB")
